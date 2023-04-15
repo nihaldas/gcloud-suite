@@ -4,6 +4,10 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+creds = None
+if os.path.exists('client_secrets.json'):
+    creds = service_account.Credentials.from_service_account_file(
+            'client_secrets.json', scopes=['https://www.googleapis.com/auth/spreadsheets'])
 
 def create(title):
     """
@@ -12,10 +16,7 @@ def create(title):
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds = None
-    if os.path.exists('client_secrets.json'):
-        creds = service_account.Credentials.from_service_account_file(
-                'client_secrets.json', scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -40,11 +41,7 @@ def get_values(spreadsheet_id, range_name):
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds = None
-    if os.path.exists('client_secrets.json'):
-        creds = service_account.Credentials.from_service_account_file(
-                'client_secrets.json', scopes=['https://www.googleapis.com/auth/spreadsheets'])
-    # pylint: disable=maybe-no-member
+    
     try:
         service = build('sheets', 'v4', credentials=creds)
 
@@ -65,7 +62,7 @@ def batch_get_values(spreadsheet_id, _range_names):
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds, _ = google.auth.default()
+    
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -90,7 +87,7 @@ def update_values(spreadsheet_id, range_name, value_input_option,
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds, _ = google.auth.default()
+    
     # pylint: disable=maybe-no-member
     try:
 
@@ -121,7 +118,7 @@ def batch_update_values(spreadsheet_id, range_name,
         TODO(developer) - See https://developers.google.com/identity
         for guides on implementing OAuth2 for the application.
             """
-    creds, _ = google.auth.default()
+    
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -159,7 +156,7 @@ def append_values(spreadsheet_id, range_name, value_input_option,
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds, _ = google.auth.default()
+    
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -192,7 +189,6 @@ def sheets_batch_update(spreadsheet_id, title, find, replacement):
     for guides on implementing OAuth2 for the application.
     """
 
-    creds, _ = google.auth.default()
     # pylint: disable=maybe-no-member
 
     try:
@@ -240,7 +236,6 @@ def pivot_tables(spreadsheet_id):
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds, _ = google.auth.default()
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -327,7 +322,6 @@ def conditional_formatting(spreadsheet_id):
     TODO(developer) - See https://developers.google.com/identity
     for guides on implementing OAuth2 for the application.
         """
-    creds, _ = google.auth.default()
     # pylint: disable=maybe-no-member
     try:
         service = build('sheets', 'v4', credentials=creds)
@@ -395,3 +389,96 @@ def conditional_formatting(spreadsheet_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return error
+
+def filter_views(spreadsheet_id):
+    """
+        Creates the batch_update the user has access to.
+        Load pre-authorized user credentials from the environment.
+        TODO(developer) - See https://developers.google.com/identity
+        for guides on implementing OAuth2 for the application.
+            """
+    
+    # pylint: disable=maybe-no-member
+    try:
+        service = build('sheets', 'v4', credentials=creds)
+
+        my_range = {
+            'sheetId': 0,
+            'startRowIndex': 0,
+            'startColumnIndex': 0,
+        }
+        addfilterviewrequest = {
+            'addFilterView': {
+                'filter': {
+                    'title': 'Sample Filter',
+                    'range': my_range,
+                    'sortSpecs': [{
+                        'dimensionIndex': 3,
+                        'sortOrder': 'DESCENDING'
+                    }],
+                    'criteria': {
+                        0: {
+                            'hiddenValues': ['Panel']
+                        },
+                        6: {
+                            'condition': {
+                                'type': 'DATE_BEFORE',
+                                'values': {
+                                    'userEnteredValue': '4/30/2016'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        body = {'requests': [addfilterviewrequest]}
+        addfilterviewresponse = service.spreadsheets() \
+            .batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+
+        duplicatefilterviewrequest = {
+            'duplicateFilterView': {
+                'filterId':
+                    addfilterviewresponse['replies'][0]
+                    ['addFilterView']['filter']
+                    ['filterViewId']
+            }
+        }
+
+        body = {'requests': [duplicatefilterviewrequest]}
+        duplicatefilterviewresponse = service.spreadsheets() \
+            .batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+
+        updatefilterviewrequest = {
+            'updateFilterView': {
+                'filter': {
+                    'filterViewId': duplicatefilterviewresponse['replies'][0]
+                    ['duplicateFilterView']['filter']['filterViewId'],
+                    'title': 'Updated Filter',
+                    'criteria': {
+                        0: {},
+                        3: {
+                            'condition': {
+                                'type': 'NUMBER_GREATER',
+                                'values': {
+                                    'userEnteredValue': '5'
+                                }
+                            }
+                        }
+                    }
+                },
+                'fields': {
+                    'paths': ['criteria', 'title']
+                }
+            }
+        }
+
+        body = {'requests': [updatefilterviewrequest]}
+        updatefilterviewresponse = service.spreadsheets() \
+            .batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+        print(str(updatefilterviewresponse))
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+
+
